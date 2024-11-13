@@ -28,6 +28,8 @@ class PerceptronModel(object):
         """
         "*** YOUR CODE HERE ***"
 
+        return nn.DotProduct(self.w, x)
+
     def get_prediction(self, x):
         """
         Calculates the predicted class for a single data point `x`.
@@ -36,11 +38,26 @@ class PerceptronModel(object):
         """
         "*** YOUR CODE HERE ***"
 
+        score = nn.as_scalar(self.run(x))
+
+        if score >= 0:
+            return 1
+        else:
+            return -1
+
     def train(self, dataset):
         """
         Train the perceptron until convergence.
         """
         "*** YOUR CODE HERE ***"
+
+        converged = False
+        while not converged:
+            converged = True #if a loop terminates without any misclassifications, terminates - Chat helped me debug this logic. I originally had an infinite for-loop
+            for x, y in dataset.iterate_once(1):
+                if self.get_prediction(x) != nn.as_scalar(y):
+                    self.w.update(x, nn.as_scalar(y))
+                    converged = False #go over data again
 
 class RegressionModel(object):
     """
@@ -52,6 +69,15 @@ class RegressionModel(object):
         # Initialize your model parameters here
         "*** YOUR CODE HERE ***"
 
+        #used ChatGPT to help give idea for overall "simple" architecture I could use
+
+        hidden_size = 20
+        
+        self.w1 = nn.Parameter(1, hidden_size) 
+        self.b1 = nn.Parameter(1, hidden_size)
+        self.w2 = nn.Parameter(hidden_size, 1)   
+        self.b2 = nn.Parameter(1, 1)
+
     def run(self, x):
         """
         Runs the model for a batch of examples.
@@ -62,6 +88,12 @@ class RegressionModel(object):
             A node with shape (batch_size x 1) containing predicted y-values
         """
         "*** YOUR CODE HERE ***"
+
+        hidden = nn.ReLU(nn.AddBias(nn.Linear(x, self.w1), self.b1))
+        
+        output = nn.AddBias(nn.Linear(hidden, self.w2), self.b2)
+        
+        return output
 
     def get_loss(self, x, y):
         """
@@ -75,11 +107,34 @@ class RegressionModel(object):
         """
         "*** YOUR CODE HERE ***"
 
+        predictions = self.run(x)
+
+        loss = nn.SquareLoss(predictions, y)
+
+        return loss
+
     def train(self, dataset):
         """
         Trains the model.
         """
         "*** YOUR CODE HERE ***"
+
+        learning_rate = 0.01
+        while True:
+            for x, y in dataset.iterate_once(batch_size=1):
+
+                loss = self.get_loss(x, y)
+                gradients = nn.gradients(loss, [self.w1, self.b1, self.w2, self.b2])
+                
+                #update
+                self.w1.update(gradients[0], -learning_rate)
+                self.b1.update(gradients[1], -learning_rate)
+                self.w2.update(gradients[2], -learning_rate)
+                self.b2.update(gradients[3], -learning_rate)
+            
+            #check if the training loss is low enough - was missing this and wasn't working, Chatgpt helped find this problem
+            if nn.as_scalar(loss) < 0.02:
+                break
 
 class DigitClassificationModel(object):
     """
