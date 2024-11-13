@@ -154,6 +154,13 @@ class DigitClassificationModel(object):
         # Initialize your model parameters here
         "*** YOUR CODE HERE ***"
 
+        hidden_size = 100
+
+        self.w1 = nn.Parameter(784, hidden_size)  
+        self.b1 = nn.Parameter(1, hidden_size)
+        self.w2 = nn.Parameter(hidden_size, 10)    
+        self.b2 = nn.Parameter(1, 10)
+
     def run(self, x):
         """
         Runs the model for a batch of examples.
@@ -170,6 +177,12 @@ class DigitClassificationModel(object):
         """
         "*** YOUR CODE HERE ***"
 
+        hidden = nn.ReLU(nn.AddBias(nn.Linear(x, self.w1), self.b1))
+        
+        output = nn.AddBias(nn.Linear(hidden, self.w2), self.b2)
+
+        return output
+
     def get_loss(self, x, y):
         """
         Computes the loss for a batch of examples.
@@ -185,11 +198,33 @@ class DigitClassificationModel(object):
         """
         "*** YOUR CODE HERE ***"
 
+        predictions = self.run(x)
+        loss = nn.SoftmaxLoss(predictions, y)
+
+        return loss
+
     def train(self, dataset):
         """
         Trains the model.
         """
         "*** YOUR CODE HERE ***"
+
+        learning_rate = 0.05
+        while True:
+            for x, y in dataset.iterate_once(batch_size=20): #ChatGPT helped me figure out correct batch size
+
+                loss = self.get_loss(x, y)
+                gradients = nn.gradients(loss, [self.w1, self.b1, self.w2, self.b2])
+                
+                self.w1.update(gradients[0], -learning_rate)
+                self.b1.update(gradients[1], -learning_rate)
+                self.w2.update(gradients[2], -learning_rate)
+                self.b2.update(gradients[3], -learning_rate)
+        
+            #check if good enough accuracy based on rubric - 97%
+            validation_accuracy = dataset.get_validation_accuracy()
+            if validation_accuracy >= 0.97:
+                break
 
 class LanguageIDModel(object):
     """
