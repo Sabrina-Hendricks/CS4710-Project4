@@ -53,11 +53,11 @@ class PerceptronModel(object):
 
         converged = False
         while not converged:
-            converged = True #if a loop terminates without any misclassifications, terminates - Chat helped me debug this logic. I originally had an infinite for-loop
+            converged = True  # if a loop terminates without any misclassifications, terminates - Chat helped me debug this logic. I originally had an infinite for-loop
             for x, y in dataset.iterate_once(1):
                 if self.get_prediction(x) != nn.as_scalar(y):
                     self.w.update(x, nn.as_scalar(y))
-                    converged = False #go over data again
+                    converged = False  # go over data again
 
 class RegressionModel(object):
     """
@@ -90,9 +90,9 @@ class RegressionModel(object):
         "*** YOUR CODE HERE ***"
 
         hidden = nn.ReLU(nn.AddBias(nn.Linear(x, self.w1), self.b1))
-        
+
         output = nn.AddBias(nn.Linear(hidden, self.w2), self.b2)
-        
+
         return output
 
     def get_loss(self, x, y):
@@ -122,7 +122,6 @@ class RegressionModel(object):
         learning_rate = 0.01
         while True:
             for x, y in dataset.iterate_once(batch_size=1):
-
                 loss = self.get_loss(x, y)
                 gradients = nn.gradients(loss, [self.w1, self.b1, self.w2, self.b2])
                 
@@ -131,10 +130,11 @@ class RegressionModel(object):
                 self.b1.update(gradients[1], -learning_rate)
                 self.w2.update(gradients[2], -learning_rate)
                 self.b2.update(gradients[3], -learning_rate)
-            
-            #check if the training loss is low enough - was missing this and wasn't working, Chatgpt helped find this problem
+
+            # check if the training loss is low enough - was missing this and wasn't working, Chatgpt helped find this problem
             if nn.as_scalar(loss) < 0.02:
                 break
+
 
 class DigitClassificationModel(object):
     """
@@ -150,6 +150,7 @@ class DigitClassificationModel(object):
     methods here. We recommend that you implement the RegressionModel before
     working on this part of the project.)
     """
+
     def __init__(self):
         # Initialize your model parameters here
         "*** YOUR CODE HERE ***"
@@ -211,17 +212,17 @@ class DigitClassificationModel(object):
 
         learning_rate = 0.05
         while True:
-            for x, y in dataset.iterate_once(batch_size=20): #ChatGPT helped me figure out correct batch size
+            for x, y in dataset.iterate_once(batch_size=20):  # ChatGPT helped me figure out correct batch size
 
                 loss = self.get_loss(x, y)
                 gradients = nn.gradients(loss, [self.w1, self.b1, self.w2, self.b2])
-                
+
                 self.w1.update(gradients[0], -learning_rate)
                 self.b1.update(gradients[1], -learning_rate)
                 self.w2.update(gradients[2], -learning_rate)
                 self.b2.update(gradients[3], -learning_rate)
-        
-            #check if good enough accuracy based on rubric - 97%
+
+            # check if good enough accuracy based on rubric - 97%
             validation_accuracy = dataset.get_validation_accuracy()
             if validation_accuracy >= 0.97:
                 break
@@ -243,7 +244,12 @@ class LanguageIDModel(object):
         self.languages = ["English", "Spanish", "Finnish", "Dutch", "Polish"]
 
         # Initialize your model parameters here
-        "*** YOUR CODE HERE ***"
+        # had chat gpt help me with this number. i started with 100 and it kept getting a low pass rate
+        self.hidden_size = 400
+
+        self.w_input = nn.Parameter(self.num_chars, self.hidden_size)
+        self.w_output = nn.Parameter(self.hidden_size, 5)
+        self.w_hidden = nn.Parameter(self.hidden_size, self.hidden_size)
 
     def run(self, xs):
         """
@@ -274,7 +280,13 @@ class LanguageIDModel(object):
             A node with shape (batch_size x 5) containing predicted scores
                 (also called logits)
         """
-        "*** YOUR CODE HERE ***"
+        parameter = nn.Linear(xs[0], self.w_input)
+        h = nn.ReLU(parameter)
+        for x in xs[1:]:
+            h = nn.Add(nn.ReLU(nn.Linear(x, self.w_input)), nn.ReLU(nn.Linear(h, self.w_hidden)))
+
+        output = nn.Linear(h, self.w_output)
+        return output
 
     def get_loss(self, xs, y):
         """
@@ -291,9 +303,46 @@ class LanguageIDModel(object):
         Returns: a loss node
         """
         "*** YOUR CODE HERE ***"
+        param = self.run(xs)
+        loss = nn.SoftmaxLoss(param, y)
+        return loss
 
     def train(self, dataset):
         """
         Trains the model.
         """
-        "*** YOUR CODE HERE ***"
+
+        # using an incremental approach like in the hint
+
+        # had chatgpt help me with the rate and patience numbers
+        rate = 0.01
+        check = 0
+        best_accuracy = 0
+
+        # chat helped me come up with the idea of check < 5
+        while check < 5:
+            total_loss = 0
+            for x, y in dataset.iterate_once(batch_size=25):
+                loss = self.get_loss(x, y)
+                gradients = nn.gradients(loss, [self.w_input, self.w_hidden, self.w_output])
+
+                self.w_input.update(gradients[0], -rate)
+                self.w_hidden.update(gradients[1], -rate)
+                self.w_output.update(gradients[2], -rate)
+                total_loss += nn.as_scalar(loss)
+
+            rate = min(0.02, rate + 0.002)
+
+            accuracy = dataset.get_validation_accuracy()
+
+
+            # keep going until accuracy is over 0.89 (our desired number)
+            if accuracy > best_accuracy:
+                best_accuracy = accuracy
+                check = 0
+            else:
+                check += 1
+
+            if best_accuracy >= 0.90:
+                break
+
